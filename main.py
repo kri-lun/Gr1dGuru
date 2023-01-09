@@ -1,12 +1,11 @@
-import datetime
 import os
+import datetime
+import webbrowser
 
 import fastf1
 import matplotlib.pylab as plt
-import pandas as pd
 import PySimpleGUI as sg
 from fastf1 import plotting
-import tkinter as tk
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -20,7 +19,7 @@ class CacheDir:
     default = './data/cache'
 
     def __init__(self, path):
-        path = 'path'
+        self.path = 'path'
 
     def Set(path):
         CacheExist = os.path.exists(path)
@@ -48,7 +47,7 @@ class Driver:
 ## Klasse som lager lister om diverse informasjon som brukeren kan velge å analysere i GUI.
 class Lists:
     def __init__(self):
-        self.Years = self.make('Years', list(range(2018, (int(datetime.datetime.today().year)+1))))
+        self.Years = self.make('Years', list(range(2018, (int(datetime.datetime.today().year)))))
         self.GrandPrix = self.make('GrandPrix', list(fastf1.get_event_schedule(self.Years.list[-1])['EventName']))
         self.Sessions = self.make('Sessions', ['FP1', 'FP2', 'FP3', 'Qualifying', 'Race'])
         self.Drivers = self.make('Drivers', ['Driver 1', 'Driver 2'])
@@ -58,7 +57,7 @@ class Lists:
         self.SesVarsY = self.make('SesVarsY', ['LapTime', 'Stint', 'Sector1Time', 'Sector2Time', 'Sector3Time', 'SpeedI1', 'SpeedI2', 'SpeedST','IsPersonalBest', 'Compound', 'TyreLife', 'TrackStatus'])
         self.LapVarsX = self.make('LapVarsX', ['Time', 'SessionTime', 'Distance'])
         self.LapVarsY = self.make('LapVarsY', ['Speed', 'RPM', 'nGear', 'Throttle', 'Brake', 'DRS'])
-        self.DriverVars = self.make('DriverVars', ['Var 1', 'Var 2'])
+        self.DriverVars = self.make('DriverVars', ['Var 1'])
         self.Laps = self.make('Laps', [1, 2, 3, 4, 5])
 
 
@@ -75,7 +74,7 @@ class Lists:
 def make_window():
     sg.theme('DarkBlue14')
     lists = Lists()
-    menu_def = [[('&Help'), ['&About', 'E&xit']]]
+    menu_def = [[('&Help'), ['&About', 'E&xit', '&GitHub']]]
 
     header_layout = [[sg.Image(source='src/common/images/icon_header.png', size=(120, 60), expand_x=True, expand_y=True)],]
 
@@ -84,14 +83,13 @@ def make_window():
     ## Ulike valg for X og Y akse Telemetry for å gjøre brukerens valg mest mulig kompatibel med hverandre. 
     menu_layout_column = [
             [sg.Menubar(menu_def, key='-MENU-')],
-            [sg.Frame('', header_layout, size=(500,100), key='-HEAD-')],
+            [sg.Frame('', header_layout, size=(475,100), key='-HEAD-')],
             [sg.OptionMenu(lists.Years.list, default_value=f'{lists.Years.list[-1]}', expand_x=True, key='-YEAR-')],
             [sg.Button('Load Season', size=(10,1), expand_x=True)],
             [sg.Listbox(lists.GrandPrix.list, enable_events=True, expand_x=True, size=(None,10), select_mode='single', horizontal_scroll=False, visible=False, pad=(7,7,7,7), key='-GP-')],
             [sg.OptionMenu(lists.Sessions.list, default_value=f'Select Session...', expand_x=True, visible=False, key='-SESSION-')],
             [sg.Button('Drivers in Session', visible=False, expand_x=True, key='-LOADDRIVERS-')],
             [sg.Listbox(lists.Drivers.list, enable_events=True, expand_x=True, size=(None,10), select_mode='single', horizontal_scroll=False, visible=False, pad=(7,7,7,7), key='-DRIVER-')],
-            [sg.Checkbox('Compare drivers?', enable_events=True, visible=False, key='-COMPARE-')],
             [sg.OptionMenu(lists.SessionSlice.list, default_value=f'Evalutate Full Session?', disabled=True, expand_x=True, visible=False, key='-SLICE-')],
             [sg.Text('Enter Lap Number', visible=False, key='-LAPASK-')],
             [sg.Input(default_text= 0, expand_x=True, visible=False, key='-LAPNUM-')],
@@ -99,22 +97,22 @@ def make_window():
             [sg.OptionMenu(lists.LapVarsY.list, default_value='Y Variable...', expand_x=True, visible=False, key='-DRIVERYVAR-')],
             [sg.OptionMenu(lists.LapVarsX.list, default_value='X Variable...', expand_x=True, visible=False, key='-DRIVERXVAR-')],
             [sg.Button('Confirm All', visible=True, expand_x=True, key='-CONFIRM ALL-')],
-            [sg.Button('Submit', visible=True, disabled=True, expand_x=True, key='-PLOT-')],
+            [sg.Button('Submit', visible=True, disabled=True, expand_x=True, key='-SUBMIT-')],
             ]
 
 
     graph_layout_column = [
-    [sg.Canvas(size=(600, 600), key= '-CANVAS-', background_color='DarkGrey',)]
+    [sg.Canvas(size=(800, 800), key= '-CANVAS-', background_color='#21273d')]
     ]
 
     layout = [
-        [sg.Column(menu_layout_column),
+        [sg.Column(menu_layout_column, vertical_alignment='top'),
         sg.VSeparator(),
         sg.Column(graph_layout_column)],
                 ]
 
 
-    window = sg.Window('Gr1dGuru', layout, margins=(10, 10), finalize=True, resizable=True)
+    window = sg.Window('Gr1dGuru', layout, margins=(10, 0), finalize=True, resizable=False)
 
     window.set_min_size(window.size)
     
@@ -136,13 +134,9 @@ def set_data(driver, slice, lap_num):
 
     return self
 
-## Definerer egenskaper til matplotlib plot som vises i resultat-vinduet. 
-def plot_ax(driver, data, fig, xvar, yvar, ax):
-    ax.plot(data[xvar], data[yvar], color=driver.teamcolor, label=f'{driver.id}')
-    ax.set_xlim(data[xvar].min(), data[xvar].max())
-## Bruker subplot funksjon for å kunne plotte og COMPAREe forskjellige førere sin data samtidig i samme figur. 
+
 def make_figure(x, y):
-    #fig = plt.figure(1, figsize=(16,9), constrained_layout=True)
+    fig = plt.figure(1, figsize=(8,8), constrained_layout=True)
     plt.plot(x, y)
     if slice == "Specific Lap":
         plotTitle = f"Lap {lap_num}, {yvar} {grandprix.event.year} {grandprix.event['EventName']}, {ses}"
@@ -157,50 +151,6 @@ def make_figure(x, y):
     plt.grid(True)
     return plt.gcf()
 
-
-## Plotter data fra data argument til hver akse i subploten. 
-## Setter fargen på linjen til sjåførens lagfarge. Label blir satt til f-string for å importere verdien av driver.id
-## Setter minimum og maksimal grense til x-aksen ved å hente data fra data. Sørger for at all data passer i figuren.  
-def compare(grandprix, driver, slice, xvar, yvar, fig, ax, lap_num):
-    for abb in driver:
-        driver = Driver(grandprix, abb)
-        data = set_data(driver, slice, lap_num)
-        plot_ax(driver, data, fig, xvar, yvar, ax)
-
-## Bestemmer beskrivelse av analyse i tittel over graf. F.eks Fastest lap, Brake, \n 2020 Austrian Grand Prix, Q.
-def set_title(grandprix, driver, yvar, slice, ses, lap_num, comp):
-    global title
-    ## Dersom valg av runde er spesifikk runde, blir runde-nr med i tittelen. 
-    if slice == "Specific Lap":
-        analysis = f"Lap {lap_num}, {yvar} \n {grandprix.event.year} {grandprix.event['EventName']}, {ses}"
-
-    ## Hvis valg av runde ikke er en spesifikk runde, består tittelen av enten full økt eller raskeste runde.
-    elif slice != "Specific Lap":
-        analysis = f"{slice}, {yvar} \n {grandprix.event.year} {grandprix.event['EventName']}, {ses}"
-
-    ## Hvis COMPAREing av sjåfører er valgt, gjelder kun regler ovenfor. 
-    if comp == True:
-        title = analysis
-
-    ## Dersom kun en sjåfør er valgt, vil dens fulle navn vises i tittelen sammen med tidligere regler. 
-    elif comp != True:
-        title = f"{driver.bio['FullName']} " + analysis
-    plt.suptitle(f"{title}")
-
-def design_plot(ax, xvar, yvar):
-        ## xvar og yvar representerer hva brukeren vil vise av telemetry. F.eks throttle og distance
-        ax.set_xlabel(xvar)
-        ax.set_ylabel(yvar)
-
-        ## Skrur på minorticks for å gi et bedre bilde av telemetrydata. 
-        ax.minorticks_on()
-        ax.grid(visible=True, axis='both', which='major', linewidth=0.9, alpha=0.3)
-
-        ## Endrer minorticks linjestil og linjebredde for å stå ut mindre enn hovedrutene.
-        ax.grid(visible=True, axis='both', which='minor', linestyle=':', linewidth=0.6, alpha=0.3)
-
-        ## Viser en oversikt av sjåfør som vises i abb(abbreviation/forkortelse) og hvilken farge som representerer hver sjåfør. 
-        ax.legend()
 
 ## Viser graf
 def show_plot():
@@ -226,21 +176,15 @@ def analyse():
     lap_num = int(values['-LAPNUM-'])
     xvar = values['-DRIVERXVAR-']
     yvar = values['-DRIVERYVAR-']
-    comp = values['-COMPARE-']
 
     ## Lager figur
 
     ## Sjekk compare status
     ## Henter sjåfør data for 
     # Plot Variables
-    if comp == True:
-        compare(grandprix, abb, slice, xvar, yvar, fig, ax, lap_num)
-        driver = Driver(grandprix, abb[0])
-
-    elif comp != True:
-        driver = Driver(grandprix, abb[0])
-        data = set_data(driver, slice, lap_num)
-        fig = make_figure(data[xvar], data[yvar])
+    driver = Driver(grandprix, abb[0])
+    data = set_data(driver, slice, lap_num)
+    fig = make_figure(data[xvar], data[yvar])
         
     draw_figure(window['-CANVAS-'].TKCanvas,  fig)
     #design_plot(ax, xvar, yvar)
@@ -274,7 +218,9 @@ def main():
                 if event == sg.WIN_CLOSED:
                     about_win.close()
 
-
+            def GitHub():
+                [webbrowser.open("https://github.com/kri-lun/Gr1dGuru")]
+                
             # Load GPs
             def LoadGPList():
                 lists = Lists()
@@ -285,11 +231,10 @@ def main():
                 window.Element('-DRIVER-').update(visible=False)
                 window.Element('-SLICE-').update(visible=False, disabled=True)
                 window.Element('-LOADVARS-').update(visible=False, disabled=True)
-                window.Element('-PLOT-').update(disabled=True, visible=False)
+                window.Element('-SUBMIT-').update(disabled=True, visible=False)
                 window.Element('-DRIVERXVAR-').update(visible=False)
                 window.Element('-DRIVERYVAR-').update(visible=False)
                 window.Element('-CONFIRM ALL-').update(visible=False)
-                window.Element('-COMPARE-').update(visible=False)
                 window.Element('-LAPASK-').update(visible=False)
                 window.Element('-LAPNUM-').update(visible=False)
                 window.refresh()
@@ -307,10 +252,9 @@ def main():
                 Lists.Drivers = lists.make('Drivers', list(driver_list))
                 window.Element('-DRIVER-').update(values=Lists.Drivers.list)
                 window.Element('-DRIVER-').update(visible=True)
-                window.Element('-COMPARE-').update(visible=True)
                 window.Element('-SLICE-').update(visible=True, disabled=True)
                 window.Element('-LOADVARS-').update(visible=True, disabled=True)
-                window.Element('-PLOT-').update(disabled=True)
+                window.Element('-SUBMIT-').update(disabled=True)
                 window.Element('-LAPASK-').update(visible=False)
                 window.Element('-LAPNUM-').update(visible=False)
                 window.refresh()
@@ -341,7 +285,7 @@ def main():
                 window.Element('-DRIVERXVAR-').update(visible=True)
                 window.Element('-DRIVERYVAR-').update(visible=True)
                 window.Element('-CONFIRM ALL-').update(visible=True)
-                window.Element('-PLOT-').update(disabled=True, visible=True)
+                window.Element('-SUBMIT-').update(disabled=True, visible=True)
                 window.refresh()
                 window.read(timeout=100)
 
@@ -355,34 +299,25 @@ def main():
             ButtonFunc.About()
 
         ##
+        elif event == 'GitHub':
+            ButtonFunc.GitHub()
+
+        ##
         elif event == 'Load Season':
             ButtonFunc.LoadGPList()
 
         ##
         elif event == '-GP-':
             window.Element('-LOADDRIVERS-').update(disabled=False)
-            window.Element('-PLOT-').update(disabled=False)
+            window.Element('-SUBMIT-').update(disabled=False)
             window.refresh()
 
         ##
         elif event == '-DRIVER-':
             window.Element('-SLICE-').update(disabled=False)
             window.Element('-LOADVARS-').update(disabled=False)
-            window.Element('-PLOT-').update(disabled=False)
+            window.Element('-SUBMIT-').update(disabled=False)
             window.refresh()
-
-        ##
-        elif event == '-COMPARE-':
-            if values['-COMPARE-'] == True:
-                window.Element('-DRIVER-').update(select_mode='multiple')
-                window.Element('-SLICE-').update(disabled=True)
-                window.refresh()
-                window.read(timeout=100)
-            if values['-COMPARE-'] == False:
-                window.Element('-DRIVER-').update(select_mode='single')
-                window.Element('-SLICE-').update(disabled=True)
-                window.refresh()
-                window.read(timeout=100)
 
         ## Load Drivers        
         elif event == '-LOADDRIVERS-':
@@ -394,12 +329,12 @@ def main():
 
         ## Confirm All
         elif event == '-CONFIRM ALL-':
-            window.Element('-PLOT-').update(disabled=False)
+            window.Element('-SUBMIT-').update(disabled=False)
             window.refresh()
             window.read(timeout=100)
 
         ## Plot        
-        elif event == '-PLOT-':
+        elif event == '-SUBMIT-':
             analyse()
 
     window.close()
@@ -408,8 +343,8 @@ def main():
 
 ## Main funksjon
 if __name__ == '__main__':
-    sg.theme('DarkGrey14')
+    sg.theme('DarkBlue14')
     main()
 else:
-    sg.theme('DarkGrey14')
+    sg.theme('DarkBlue14')
     main()
