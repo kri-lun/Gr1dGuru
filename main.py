@@ -72,6 +72,53 @@ class Lists:
                 print(self.list)
         return Make(name, _list)
         
+def make_window():
+    sg.theme('DarkBlue14')
+    lists = Lists()
+    menu_def = [[('&Help'), ['&About', 'E&xit']]]
+
+    header_layout = [[sg.Image(source='src/common/images/icon_header.png', size=(120, 60), expand_x=True, expand_y=True)],]
+
+
+    ## Input meny
+    ## Ulike valg for X og Y akse Telemetry for å gjøre brukerens valg mest mulig kompatibel med hverandre. 
+    menu_layout_column = [
+            [sg.Menubar(menu_def, key='-MENU-')],
+            [sg.Frame('', header_layout, size=(500,100), key='-HEAD-')],
+            [sg.OptionMenu(lists.Years.list, default_value=f'{lists.Years.list[-1]}', expand_x=True, key='-YEAR-')],
+            [sg.Button('Load Season', size=(10,1), expand_x=True)],
+            [sg.Listbox(lists.GrandPrix.list, enable_events=True, expand_x=True, size=(None,10), select_mode='single', horizontal_scroll=False, visible=False, pad=(7,7,7,7), key='-GP-')],
+            [sg.OptionMenu(lists.Sessions.list, default_value=f'Select Session...', expand_x=True, visible=False, key='-SESSION-')],
+            [sg.Button('Drivers in Session', visible=False, expand_x=True, key='-LOADDRIVERS-')],
+            [sg.Listbox(lists.Drivers.list, enable_events=True, expand_x=True, size=(None,10), select_mode='single', horizontal_scroll=False, visible=False, pad=(7,7,7,7), key='-DRIVER-')],
+            [sg.Checkbox('Compare drivers?', enable_events=True, visible=False, key='-COMPARE-')],
+            [sg.OptionMenu(lists.SessionSlice.list, default_value=f'Evalutate Full Session?', disabled=True, expand_x=True, visible=False, key='-SLICE-')],
+            [sg.Text('Enter Lap Number', visible=False, key='-LAPASK-')],
+            [sg.Input(default_text= 0, expand_x=True, visible=False, key='-LAPNUM-')],
+            [sg.Button('Select Telemetry', visible=False, disabled=True, expand_x=True, key='-LOADVARS-')],
+            [sg.OptionMenu(lists.LapVarsY.list, default_value='Y Variable...', expand_x=True, visible=False, key='-DRIVERYVAR-')],
+            [sg.OptionMenu(lists.LapVarsX.list, default_value='X Variable...', expand_x=True, visible=False, key='-DRIVERXVAR-')],
+            [sg.Button('Confirm All', visible=True, expand_x=True, key='-CONFIRM ALL-')],
+            [sg.Button('Submit', visible=True, disabled=True, expand_x=True, key='-PLOT-')],
+            ]
+
+
+    graph_layout_column = [
+    [sg.Canvas(size=(600, 600), key= '-CANVAS-', background_color='DarkGrey',)]
+    ]
+
+    layout = [
+        [sg.Column(menu_layout_column),
+        sg.VSeparator(),
+        sg.Column(graph_layout_column)],
+                ]
+
+
+    window = sg.Window('Gr1dGuru', layout, margins=(10, 10), finalize=True, resizable=True)
+
+    window.set_min_size(window.size)
+    
+    return window
 
 ## Funksjon som lar brukeren bestemme hvilke runder som skal analyseres. 
 ## best_tel henter data fra sjåførens beste runde, lap_num tar et user input og henter data fra int inputen til brukeren. Full session henter data fra hele kvalifiseringsøkten.
@@ -90,20 +137,30 @@ def set_data(driver, slice, lap_num):
     return self
 
 ## Definerer egenskaper til matplotlib plot som vises i resultat-vinduet. 
-## Bruker subplot funksjon for å kunne plotte og COMPAREe forskjellige førere sin data samtidig i samme figur. 
-def make_figure():
-        fig = plt.figure(1, figsize=(16,9), constrained_layout=True)
-        ax = fig.subplots()
-        return fig, ax
-
-def plot_ax(driver, data, figure, xvar, yvar, ax):
+def plot_ax(driver, data, fig, xvar, yvar, ax):
     ax.plot(data[xvar], data[yvar], color=driver.teamcolor, label=f'{driver.id}')
     ax.set_xlim(data[xvar].min(), data[xvar].max())
+## Bruker subplot funksjon for å kunne plotte og COMPAREe forskjellige førere sin data samtidig i samme figur. 
+def make_figure(x, y):
+    #fig = plt.figure(1, figsize=(16,9), constrained_layout=True)
+    plt.plot(x, y)
+    if slice == "Specific Lap":
+        plotTitle = f"Lap {lap_num}, {yvar} {grandprix.event.year} {grandprix.event['EventName']}, {ses}"
+        plt.title(plotTitle, fontsize=12)
+
+    elif slice != "Specific Lap":
+        plotTitle = f"{slice}, {yvar} {grandprix.event.year} {grandprix.event['EventName']}, {ses}"
+        plt.title(plotTitle, fontsize=12)
+
+    plt.xlabel(xvar)
+    plt.ylabel(yvar)
+    plt.grid(True)
+    return plt.gcf()
+
 
 ## Plotter data fra data argument til hver akse i subploten. 
 ## Setter fargen på linjen til sjåførens lagfarge. Label blir satt til f-string for å importere verdien av driver.id
-## Setter minimum og maksimal grense til x-aksen ved å hente data fra 'data'. Sørger for at all data passer i figuren.  
-
+## Setter minimum og maksimal grense til x-aksen ved å hente data fra data. Sørger for at all data passer i figuren.  
 def compare(grandprix, driver, slice, xvar, yvar, fig, ax, lap_num):
     for abb in driver:
         driver = Driver(grandprix, abb)
@@ -149,7 +206,12 @@ def design_plot(ax, xvar, yvar):
 def show_plot():
     plt.show()
 
-##def save_fig():
+
+def draw_figure(canvas, figure):
+    figure_canvas_agg = FigureCanvasTkAgg(figure, canvas)
+    figure_canvas_agg.draw()
+    figure_canvas_agg.get_tk_widget().pack(side='top', fill='both', expand=1)
+    return figure_canvas_agg
 
 def analyse():
     ## Globale input verdier
@@ -167,7 +229,6 @@ def analyse():
     comp = values['-COMPARE-']
 
     ## Lager figur
-    fig, ax = make_figure()
 
     ## Sjekk compare status
     ## Henter sjåfør data for 
@@ -179,69 +240,21 @@ def analyse():
     elif comp != True:
         driver = Driver(grandprix, abb[0])
         data = set_data(driver, slice, lap_num)
-        plot_ax(driver, data, fig, xvar, yvar, ax)
+        fig = make_figure(data[xvar], data[yvar])
         
-    design_plot(ax, xvar, yvar)
-    set_title(grandprix, driver, yvar, slice, ses, lap_num, comp)
+    draw_figure(window['-CANVAS-'].TKCanvas,  fig)
+    #design_plot(ax, xvar, yvar)
+   # set_title(grandprix, driver, yvar, slice, ses, lap_num, comp)
 
 
     # Show Plot
-    show_plot()
+    #show_plot()
 
 
-
-
-def make_window():
-    sg.theme('DarkBlue14')
-    lists = Lists()
-    menu_def = [[('&Help'), ['&About', 'E&xit']]]
-
-    header_layout = [[sg.Image(source='src/common/images/icon_header.png', size=(120, 60), expand_x=True, expand_y=True)],]
-
-
-    ## Input meny
-    ## Ulike valg for X og Y akse Telemetry for å gjøre brukerens valg mest mulig kompatibel med hverandre. 
-    menu_layout_column = [
-            [sg.Menubar(menu_def, key='-MENU-')],
-            [sg.Frame('', header_layout, size=(500,100), key='-HEAD-')],
-            [sg.OptionMenu(lists.Years.list, default_value=f'{lists.Years.list[-1]}', expand_x=True, key='-YEAR-')],
-            [sg.Button('Load Season', size=(10,1), expand_x=True)],
-            [sg.Listbox(lists.GrandPrix.list, enable_events=True, expand_x=True, size=(None,10), select_mode='single', horizontal_scroll=False, visible=False, pad=(7,7,7,7), key='-GP-')],
-            [sg.OptionMenu(lists.Sessions.list, default_value=f'Select Session...', expand_x=True, visible=False, key='-SESSION-')],
-            [sg.Button('Drivers in Session', visible=False, expand_x=True, key='-LOADDRIVERS-')],
-            [sg.Listbox(lists.Drivers.list, enable_events=True, expand_x=True, size=(None,10), select_mode='single', horizontal_scroll=False, visible=False, pad=(7,7,7,7), key='-DRIVER-')],
-            [sg.Checkbox('Compare drivers?', enable_events=True, visible=False, key='-COMPARE-')],
-            [sg.OptionMenu(lists.SessionSlice.list, default_value=f'Evalutate Full Session?', disabled=True, expand_x=True, visible=False, key='-SLICE-')],
-            [sg.Text('Enter Lap Number', visible=False, key='-LAPASK-')],
-            [sg.Input(default_text= 0, expand_x=True, visible=False, key='-LAPNUM-')],
-            [sg.Button('Select Telemetry', visible=False, disabled=True, expand_x=True, key='-LOADVARS-')],
-            [sg.OptionMenu(lists.LapVarsY.list, default_value='Y Variable...', expand_x=True, visible=False, key='-DRIVERYVAR-')],
-            [sg.OptionMenu(lists.LapVarsX.list, default_value='X Variable...', expand_x=True, visible=False, key='-DRIVERXVAR-')],
-            [sg.Button('Confirm All', visible=True, expand_x=True, key='-CONFIRM ALL-')],
-            [sg.Button('Submit', visible=True, disabled=True, expand_x=True, key='-PLOT-')],
-            ]
-
-
-    graph_layout_column = [
-    [sg.Canvas(size=(600, 600), key= '-CANVAS-', background_color='DarkGrey',)]
-    ]
-
-    layout = [
-        [sg.Column(menu_layout_column),
-        sg.VSeparator(),
-        sg.Column(graph_layout_column)],
-                ]
-
-
-    window = sg.Window('Gr1dGuru', layout, margins=(10, 10), finalize=True, resizable=False)
-
-    window.set_min_size(window.size)
-    
-    return window
-
-
+window = make_window() 
 def main():
-    window = make_window()
+
+
 
     # Window Open, Begin Event Loop
     while True:
@@ -400,4 +413,3 @@ if __name__ == '__main__':
 else:
     sg.theme('DarkGrey14')
     main()
-
