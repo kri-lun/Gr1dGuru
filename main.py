@@ -33,7 +33,6 @@ class CacheDir:
 fastf1.Cache.enable_cache('./data/cache')
 
 ## Gather info about driver
-## Henter fører informasjon fra grandprix argument og assigner til "laps" og "driver_info" variabler for gjenbruk.
 class Driver:
     def __init__(self, grandprix, abb):
         ## Driver abbreviation
