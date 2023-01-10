@@ -119,7 +119,7 @@ def make_window():
                 ]
 
 
-    window = sg.Window('Gr1dGuru', layout, margins=(10, 0), finalize=True, resizable=False)
+    window = sg.Window('Gr1dGuru', layout, margins=(10, 0), finalize=True, resizable=True)
 
     window.set_min_size(window.size)
     
